@@ -23,10 +23,10 @@ const ResultView: React.FC<ResultViewProps> = ({ answers, questions, timeTaken, 
   const solutionsRef = useRef<HTMLDivElement>(null);
 
   const allQuestions = [
-      ...questions[Subject.ENGLISH],
-      ...questions[Subject.GK],
-      ...questions[Subject.REASONING],
-      ...questions[Subject.MATHS],
+      ...questions[Subject.ENGLISH].map(q => ({ ...q, subject: Subject.ENGLISH })),
+      ...questions[Subject.GK].map(q => ({ ...q, subject: Subject.GK })),
+      ...questions[Subject.REASONING].map(q => ({ ...q, subject: Subject.REASONING })),
+      ...questions[Subject.MATHS].map(q => ({ ...q, subject: Subject.MATHS })),
   ];
 
   const correctCount = answers.filter(a => a.isCorrect).length;
