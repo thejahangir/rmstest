@@ -74,7 +74,7 @@ const App: React.FC = () => {
              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-lg">
                R
              </div>
-             <span className="text-xl font-bold tracking-tight">RizaJabirTest</span>
+             <span className="text-xl font-bold tracking-tight">Jabir RMS Test</span>
            </div>
            <div className="text-xs font-medium px-3 py-1 bg-surface border border-slate-700 rounded-full text-slate-400">
              Class VI Entrance
