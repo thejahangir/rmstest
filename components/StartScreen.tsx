@@ -12,7 +12,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, isLoading }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 animate-fade-in">
       <div className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent mb-6">
-        <h1 className="text-6xl font-extrabold tracking-tight">RizaJabirTest</h1>
+        <h1 className="text-6xl font-extrabold tracking-tight">Jabir RMS Test</h1>
       </div>
       
       <p className="text-xl text-slate-400 mb-8 max-w-2xl">
