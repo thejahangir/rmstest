@@ -14,9 +14,29 @@ const shuffleArray = <T>(array: T[]): T[] => {
 const createQuestionWithRandomOptions = (id: string, text: string, correctAnswer: string, wrongAnswers: string[], explanation: string): Question => {
     // Ensure unique options
     const uniqueWrong = Array.from(new Set(wrongAnswers)).filter(w => w !== correctAnswer);
+    
     // Fill if not enough (fallback)
     while(uniqueWrong.length < 3) {
-        uniqueWrong.push(`Option ${Math.floor(Math.random() * 1000)}`);
+        if (!isNaN(Number(correctAnswer))) {
+            // If answer is number, generate close numbers
+            let val = Number(correctAnswer) + (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random() * 10) + 1);
+            // Ensure unique
+            while(uniqueWrong.includes(String(val)) || String(val) === correctAnswer) {
+                 val += 1;
+            }
+            uniqueWrong.push(String(val));
+        } else {
+            // Text fallback - use context aware strings if possible, else generic
+            const textFallbacks = ["None of these", "Cannot determine", "All of the above", "Not applicable"];
+            const nextFallback = textFallbacks.find(f => !uniqueWrong.includes(f) && f !== correctAnswer);
+            
+            if (nextFallback) {
+                uniqueWrong.push(nextFallback);
+            } else {
+                // Last resort
+                uniqueWrong.push(`Option ${uniqueWrong.length + 1}`);
+            }
+        }
     }
     const finalWrong = uniqueWrong.slice(0, 3);
     
@@ -165,9 +185,9 @@ const generateMathQuestionsSafe = (count: number): Question[] => {
         } else if (type === 116) { // Num Palindrome
              questions.push(createQuestionWithRandomOptions(id, `Which is palindrome?`, `121`, [`123`, `112`, `122`], `Reads same back`));
         } else {
-             // Fallback for any gap
+             // Fallback for any gap - provide 3 distinct wrong options
              const a = Math.floor(Math.random()*100);
-             questions.push(createQuestionWithRandomOptions(id, `Value of ${a}?`, `${a}`, [`${a+1}`, `${a-1}`], `Identity`));
+             questions.push(createQuestionWithRandomOptions(id, `Value of ${a}?`, `${a}`, [`${a+1}`, `${a-1}`, `${a+10}`], `Identity`));
         }
     });
     return questions;
@@ -207,7 +227,7 @@ const generateReasoningQuestionsSafe = (count: number): Question[] => {
         } else if (type === 90) { // Counting 2
              questions.push(createQuestionWithRandomOptions(id, `Squares in 2x2 grid?`, `5`, [`4`, `6`, `8`], `4 small + 1 big`));
         } else {
-             questions.push(createQuestionWithRandomOptions(id, `A is A. B is?`, `B`, [`C`, `D`], `Identity`));
+             questions.push(createQuestionWithRandomOptions(id, `A is A. B is?`, `B`, [`C`, `D`, `X`], `Identity`));
         }
     });
     return questions;
@@ -281,17 +301,46 @@ const generateEnglishQuestionsSafe = (count: number): Question[] => {
             questions.push(createQuestionWithRandomOptions(id, `Past tense of "${pair[0]}"?`, pair[1], [`${pair[0]}ed`, `${pair[0]}ing`, `Gone`], `Irregular verb.`));
         } else if (type === 4) { // Spellings
             const word = SPELLINGS[i % SPELLINGS.length];
-            const wrong1 = word.replace('e', 'a');
-            const wrong2 = word.replace('ss', 's').replace('ll', 'l');
-            const wrong3 = word.replace('i', 'ie');
-            questions.push(createQuestionWithRandomOptions(id, `Correct spelling?`, word, [wrong1, wrong2, wrong3], `Check dictionary.`));
+            const wrongOptions = [];
+            
+            // 1. Double letter swap/remove
+            if (word.match(/([a-z])\1/i)) {
+                wrongOptions.push(word.replace(/([a-z])\1/i, '$1')); 
+            } else {
+                 // Force double letter where it shouldn't be
+                 wrongOptions.push(word.replace(/([l|s|p|m|r|t])/i, '$1$1'));
+            }
+            
+            // 2. Vowel swap
+            if (word.includes('a')) wrongOptions.push(word.replace('a', 'e'));
+            else if (word.includes('e')) wrongOptions.push(word.replace('e', 'a'));
+            else if (word.includes('i')) wrongOptions.push(word.replace('i', 'e'));
+            else if (word.includes('o')) wrongOptions.push(word.replace('o', 'u'));
+            
+            // 3. Suffix mess or arbitrary swap
+            if (word.length > 5) {
+                const head = word.slice(0, -2);
+                const tail = word.slice(-2).split('').reverse().join('');
+                wrongOptions.push(head + tail);
+            }
+            
+            // 4. Random Swap fallback
+            const arr = word.split('');
+            if (arr.length > 3) {
+                 const k = Math.floor(Math.random() * (arr.length - 2)) + 1;
+                 [arr[k], arr[k+1]] = [arr[k+1], arr[k]];
+                 wrongOptions.push(arr.join(''));
+            }
+
+            questions.push(createQuestionWithRandomOptions(id, `Correct spelling?`, word, wrongOptions, `Check dictionary.`));
         } else if (type === 5) { // Idioms
             const pair = IDIOMS[i % IDIOMS.length];
             questions.push(createQuestionWithRandomOptions(id, `Meaning of "${pair[0]}"?`, pair[1], [`Literal meaning`, `Opposite`, `Unrelated`], `Figurative meaning.`));
         } else if (type === 6) { // Article
             const nouns = [['Apple', 'An'], ['Car', 'A'], ['Sun', 'The'], ['Hour', 'An'], ['University', 'A'], ['Book', 'A'], ['Elephant', 'An']];
             const pair = nouns[Math.floor(Math.random() * nouns.length)];
-            questions.push(createQuestionWithRandomOptions(id, `___ ${pair[0]}`, pair[1], ['A', 'An', 'The'].filter(x=>x!==pair[1]), `Article usage.`));
+            // Pass all possible wrong articles + No Article
+            questions.push(createQuestionWithRandomOptions(id, `___ ${pair[0]}`, pair[1], ['A', 'An', 'The', 'No Article'].filter(x=>x!==pair[1]), `Article usage.`));
         } else { // One Word
              const ones = [['One who paints', 'Painter'], ['Study of life', 'Biology'], ['Life story by self', 'Autobiography'], ['Fit to eat', 'Edible']];
              const pair = ones[Math.floor(Math.random() * ones.length)];
