@@ -5,6 +5,16 @@ import QuizView from './components/QuizView';
 import ResultView from './components/ResultView';
 import { generateQuestionsForSubject } from './services/geminiService';
 
+// Utility to shuffle array ensuring randomness (Fisher-Yates Shuffle)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
 const App: React.FC = () => {
   const [status, setStatus] = useState<QuizStatus>('IDLE');
   const [questions, setQuestions] = useState<Record<Subject, Question[]>>({
@@ -29,17 +39,20 @@ const App: React.FC = () => {
         generateQuestionsForSubject(Subject.MATHS, countPerSubject)
       ]);
 
-      setQuestions({
-        [Subject.ENGLISH]: eng,
-        [Subject.GK]: gk,
-        [Subject.REASONING]: reason,
-        [Subject.MATHS]: maths
-      });
+      // Randomize the order of questions within each subject explicitly
+      // This ensures that even if the generator produces questions in a pattern, 
+      // the user sees them in a random order during the quiz.
+      const randomizedQuestions = {
+        [Subject.ENGLISH]: shuffleArray(eng),
+        [Subject.GK]: shuffleArray(gk),
+        [Subject.REASONING]: shuffleArray(reason),
+        [Subject.MATHS]: shuffleArray(maths)
+      };
+
+      setQuestions(randomizedQuestions);
       setStatus('IN_PROGRESS');
     } catch (error) {
       console.error("Failed to start quiz", error);
-      // Even if error, we might have partial data or fallback to IDLE? 
-      // For now, let's just go back to IDLE or show error.
       setStatus('IDLE');
       alert("Something went wrong while generating questions. Please check your connection or API limit.");
     }
@@ -74,19 +87,18 @@ const App: React.FC = () => {
              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-lg">
                R
              </div>
-             <span className="text-xl font-bold tracking-tight">Jabir RMS Test</span>
+             <span className="text-xl font-bold tracking-tight">RizaJabir MockLab</span>
            </div>
            <div className="text-xs font-medium px-3 py-1 bg-surface border border-slate-700 rounded-full text-slate-400">
              Class VI Entrance
            </div>
         </nav>
 
-        {status === 'IDLE' && (
-          <StartScreen onStart={startQuiz} isLoading={false} />
-        )}
-
-        {status === 'LOADING' && (
-           <StartScreen onStart={() => {}} isLoading={true} />
+        {(status === 'IDLE' || status === 'LOADING') && (
+          <StartScreen 
+            onStart={startQuiz} 
+            isLoading={status === 'LOADING'} 
+          />
         )}
 
         {status === 'IN_PROGRESS' && (

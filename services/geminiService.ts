@@ -3,26 +3,48 @@ import { Subject, Question } from "../types";
 import { getMockQuestions } from "./mockQuestionBank";
 
 // Initialize Gemini Client
+// Note: In a real environment, allow this to be empty and handle gracefully
 const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
 
 export const generateQuestionsForSubject = async (
   subject: Subject,
   count: number
 ): Promise<Question[]> => {
+  // 1. Immediate Fallback if no API Key is configured
   if (!apiKey) {
     console.warn("No API Key found. Using Question Bank.");
     return getMockQuestions(subject, count);
   }
 
-  const prompt = `Generate ${count} multiple-choice questions for the subject "${subject}" suitable for a Class VI RMS (Rashtriya Military School) Entrance Exam. 
-  Ensure questions are challenging but age-appropriate.
-  For Maths, include word problems and arithmetic.
-  For English, include grammar, vocabulary, and comprehension style questions.
-  For GK, include recent current affairs and static GK.
-  For Reasoning, include logical sequences, coding-decoding, and analogies.`;
+  const ai = new GoogleGenAI({ apiKey });
+
+  // 2. Construct AI Prompt
+  const prompt = `Generate ${count} distinct multiple-choice questions for the subject "${subject}" suitable for a Class VI RMS (Rashtriya Military School) Entrance Exam. 
+  
+  Guidelines:
+  - Audience: 10-12 year old students.
+  - Difficulty: Balanced mix of Easy, Medium, and Hard.
+  - Format: JSON array.
+  
+  Subject Specifics:
+  - Maths: Word problems, arithmetic, geometry, fractions, speed/distance/time.
+  - English: Grammar (prepositions, conjunctions, tenses), synonyms/antonyms, vocabulary.
+  - GK: Current affairs, Indian history, geography, general science.
+  - Reasoning: Logical sequences, analogies, coding-decoding, odd one out, blood relations.
+
+  Output strictly a JSON array of objects with this schema:
+  [
+    {
+      "text": "Question text here",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswerIndex": 0, // Integer 0-3
+      "explanation": "Brief explanation why this is correct"
+    }
+  ]`;
 
   try {
+    console.log(`Fetching ${count} questions for ${subject} via Gemini...`);
+    
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
@@ -37,7 +59,7 @@ export const generateQuestionsForSubject = async (
               options: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "A list of 4 options",
+                description: "A list of exactly 4 options",
               },
               correctAnswerIndex: {
                 type: Type.INTEGER,
@@ -55,23 +77,50 @@ export const generateQuestionsForSubject = async (
     });
 
     const rawData = response.text;
+    
     if (!rawData) {
       throw new Error("Empty response from Gemini");
     }
 
-    const parsedData: any[] = JSON.parse(rawData);
+    // 3. Robust JSON Parsing
+    // Sometimes models wrap JSON in markdown blocks even when requested as JSON
+    let cleanJson = rawData.trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '');
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '');
+    }
 
-    // Map to our internal type and add IDs
-    return parsedData.map((q, index) => ({
-      id: `${subject.substring(0, 3).toUpperCase()}-${Date.now()}-${index}`,
+    const parsedData: any[] = JSON.parse(cleanJson);
+
+    if (!Array.isArray(parsedData) || parsedData.length === 0) {
+      throw new Error("Invalid JSON format received from AI");
+    }
+
+    // 4. Transform to App Type
+    const aiQuestions: Question[] = parsedData.map((q, index) => ({
+      id: `${subject.substring(0, 3).toUpperCase()}-AI-${Date.now()}-${index}`,
       text: q.text,
       options: q.options,
       correctAnswerIndex: q.correctAnswerIndex,
-      explanation: q.explanation,
+      explanation: q.explanation || "No explanation provided.",
     }));
+
+    // 5. Fill Gap if AI returned fewer questions than requested
+    if (aiQuestions.length < count) {
+      const remaining = count - aiQuestions.length;
+      console.warn(`AI returned ${aiQuestions.length}/${count} questions. Filling ${remaining} from mock bank.`);
+      const fillQuestions = getMockQuestions(subject, remaining);
+      return [...aiQuestions, ...fillQuestions];
+    }
+
+    return aiQuestions.slice(0, count);
+
   } catch (error) {
-    console.error(`Error generating questions for ${subject}:`, error);
-    // Fallback to robust question bank
+    console.error(`Error generating questions for ${subject} via AI:`, error);
+    console.log("Falling back to Mock Question Bank.");
+    
+    // 6. Seamless Fallback
     return getMockQuestions(subject, count);
   }
 };
